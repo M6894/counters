@@ -1,0 +1,11 @@
+# Files
+*.out
+*.exe
+*.pdf
+*.stackdump
+project_template.cpp
+
+# Folders
+.vscode/
+course/
+other/
