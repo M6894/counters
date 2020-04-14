@@ -11,11 +11,15 @@ using namespace std;
 
 class Date {
 public:
-    Date();
-    Date(vector<int> input_date) {
-        year = input_date[0];
-        month = input_date[1];
-        day = input_date[2];
+    Date() {
+        year = 0;
+        month = 0;
+        day = 0;
+    }
+    Date(int y, int m, int d) {
+        year = y;
+        month = m;
+        day = d;
     }
     int GetYear() const {
         return year;
@@ -47,83 +51,101 @@ bool operator<(const Date& lhs, const Date& rhs) {
     }
 }
 
+bool operator==(const Date& lhs, const Date& rhs) {
+    return (lhs.GetDay() == rhs.GetDay()) && (lhs.GetMonth() == rhs.GetMonth() && (lhs.GetYear() == rhs.GetYear()));
+}
+
 struct MonthlyCounters {
-    Date date;
+    Date date = {0, 0, 0};
     double gvs = 0;
     double hvs = 0;
     double t1 = 0;
     double t2 = 0;
 };
 
-bool operator<(MonthlyCounters lhs, MonthlyCounters rhs) {
+bool operator<(const MonthlyCounters& lhs, const MonthlyCounters& rhs) {
     return lhs.date < rhs.date;
 }
 
-vector<int> ParseDate(istream& input) {
-    if (input) {
-        // Сохраняем введенную дату для вывода ошибки
-        string input_date;
-        getline(input, input_date, ' ');
-
-        stringstream user_date(input_date);
-
-        int y, m, d;
-        char def1, def2;
-        try {
-            user_date >> y >> def1 >> m >> def2 >> d;
-            if (!user_date) {
-                throw runtime_error(input_date);
-            } else if (def1 != '-' || def2 != '-') {
-                throw runtime_error(input_date); 
-            } else if (user_date.peek() != EOF) {
-                throw runtime_error(input_date); 
-            } else {
-                if (m > 12 || m < 1) {
-                    throw invalid_argument("Month value is invalid: " + to_string(m));
-                } else if (d > 31 || d < 1) {
-                    throw invalid_argument("Day value is invalid: " + to_string(d));
-                } else {
-                    return {y, m, d};
-                }                
-            }
-        } catch (const runtime_error& ex) {
-            cerr << "Wrong date format: " << ex.what() << endl;
-        } catch (const invalid_argument& arg) {
-            cerr << arg.what() << endl;
-        }
-    }
-    return {0, 0, 0};
+bool operator==(const MonthlyCounters& lhs, const MonthlyCounters& rhs) {
+    return lhs.date == rhs.date;    
 }
 
-/*
+// TODO
+ostream& operator<<(ostream& output, MonthlyCounters counters) {
+    cout << counters.gvs << endl;
+    return output;
+}
+
+Date ParseDate(string& input_date) {
+    stringstream user_date(input_date);
+
+    int y, m, d;
+    char def1, def2;
+    try {
+        user_date >> y >> def1 >> m >> def2 >> d;
+        if (!user_date) {
+            throw runtime_error(input_date);
+        } else if (def1 != '-' || def2 != '-') {
+            throw runtime_error(input_date); 
+        } else if (user_date.peek() != EOF) {
+            throw runtime_error(input_date); 
+        } else {
+            if (m > 12 || m < 1) {
+                throw invalid_argument("Month value is invalid: " + to_string(m));
+            } else if (d > 31 || d < 1) {
+                throw invalid_argument("Day value is invalid: " + to_string(d));
+            } else {
+                return Date(y, m, d); // TODO: Check
+            }                
+        }
+    } catch (const runtime_error& ex) {
+        cerr << "Wrong date format: " << ex.what() << endl;
+    } catch (const invalid_argument& arg) {
+        cerr << arg.what() << endl;
+    }
+    return Date(0, 0, 0); // TODO: Check
+}
+
 class Db {
 public:
-    void GetFileData(const string& path) {
+    Db();
+    Db(const string& path) {
+        ReadFile(path);
+    }
+    void ReadFile(const string& path) {
         ifstream input(path);
         MonthlyCounters new_month;
         if (input) {
+            // Error message line number init
+            int line_count = 0;
             while (input.peek() != EOF) {
+                // Error message line number increasing
+                ++line_count;
+                // Line gathering
                 string line_str;
                 getline(input, line_str);
                 stringstream line(line_str);
-                string tmp_date;
-                getline(line, tmp_date, ',');
-                stringstream date_to_parse(tmp_date);
-                // Check the date was ok in file 
+                // date string gathering
+                string raw_date;
+                getline(line, raw_date, ','); // Eats the ','
+                // Parse and check the stored date 
                 // (the error may appear if the file was edited manually)
-                vector<int> date = ParseDate(date_to_parse);
-                if (!date.empty()) {
-                    // Add temp new_month? to be checked whether i can assign vector to date.
-                    Date tmp_date(date);
-                    new_month.date = tmp_date;
-                    char d; // Delimiter
-                    line >> d;
-                    if (d == ',') line >> new_month.gvs >> d;
-                    if (d == ',') line >> new_month.hvs >> d;
-                    if (d == ',') line >> new_month.t1 >> d;
-                    if (d == ',') line >> new_month.t2;
-                    if (input) {
+                Date date = ParseDate(raw_date);
+                if (date.GetMonth() != 0 && line) {
+                    new_month.date = date;
+                    bool ok = true;
+                    char d; 
+                    ok = ok && (line >> new_month.gvs >> d) && (d == ',');
+                    ok = ok && (line >> new_month.hvs >> d) && (d == ',');
+                    ok = ok && (line >> new_month.t1 >> d) && (d == ',');
+                    ok = ok && (line >> new_month.t2);
+                    // Saving the results or show the error
+                    if (ok && (line.peek() == EOF)) {
                         counters.insert(new_month);
+                    } else {
+                        cerr << "Error in line " << line_count << ": " << line_str
+                        << "\nSkipping this line." << endl;
                     }
                 }
             }
@@ -143,19 +165,16 @@ public:
     // }
 
 private:
-    set<MonthlyCounters> counters;
+    set<MonthlyCounters> counters = {};
     const int gvs_rate = 188.53;
     const int hvs_rate = 38.06;
     const int t1_rate = 4.95;
     const int t2_rate = 1.35;  
 };
-*/
-
 
 
 int main() {
     const string path = "counters-data.txt";
-    // Db db;
-    // db.GetFileData(path);
+    Db db(path);
     return 0;
 }
