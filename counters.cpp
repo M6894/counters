@@ -107,6 +107,19 @@ Date ParseDate(string& input_date) {
     return Date(0, 0, 0); // TODO: Check
 }
 
+MonthlyCounters ParseCounters(istream& line, MonthlyCounters new_month) {
+    bool ok = true;
+    char d; 
+    ok = ok && (line >> new_month.gvs >> d) && (d == ',');
+    ok = ok && (line >> new_month.hvs >> d) && (d == ',');
+    ok = ok && (line >> new_month.t1 >> d) && (d == ',');
+    ok = ok && (line >> new_month.t2);
+    if (ok && (line.peek() == EOF)) {
+        return new_month;
+    }
+    throw logic_error("Input syntax error in counters followed correct date.");
+}
+
 class Db {
 public:
     Db();
@@ -119,7 +132,7 @@ public:
         if (input) {
             // Error message line number init
             int line_count = 0;
-            while (input.peek() != EOF) {
+            while (!input.eof()) {
                 // Error message line number increasing
                 ++line_count;
                 // Line gathering
@@ -134,6 +147,7 @@ public:
                 Date date = ParseDate(raw_date);
                 if (date.GetMonth() != 0 && line) {
                     new_month.date = date;
+                    // TODO: Reuse AddNewMonth 
                     bool ok = true;
                     char d; 
                     ok = ok && (line >> new_month.gvs >> d) && (d == ',');
@@ -141,24 +155,40 @@ public:
                     ok = ok && (line >> new_month.t1 >> d) && (d == ',');
                     ok = ok && (line >> new_month.t2);
                     // Saving the results or show the error
-                    if (ok && (line.peek() == EOF)) {
+                    if (ok && (line.eof() || (line.peek() == '\r') || (line.peek() == '\n'))) {
                         counters.insert(new_month);
                     } else {
                         cerr << "Error in line " << line_count << ": " << line_str
                         << "\nSkipping this line." << endl;
                     }
+                } else {
+                    cerr << "Line " << line_count << endl;
                 }
             }
         }
     }
 
-    // void GetNewMonthData() {
+    void AddNewMonth(istream& line) {
+        MonthlyCounters new_month;
+        string raw_date;
+        getline(line, raw_date, ','); // Eats the ','
+        // Parse and check input date 
+        Date date = ParseDate(raw_date);
+        if (line && date.GetMonth() != 0) {
+            new_month.date = date;
+            try {
+                new_month = ParseCounters(line, new_month);
+                counters.insert(new_month);
+            } catch(const exception& e) {
+                cerr << e.what() << endl;
+            }
+        }
+        // CalculatePayment();
+    }
 
-    // }
+    void CalculatePayment() {
 
-    // void CalculatePayment() {
-
-    // }
+    }
     
     // void SaveFileData(const string& path) {
 
@@ -176,5 +206,17 @@ private:
 int main() {
     const string path = "counters-data.txt";
     Db db(path);
+
+    string command_line;
+    while (getline(cin, command_line)) {
+        stringstream ss(command_line);
+        string command;
+        ss >> command;
+        if (command == "add") {
+            db.AddNewMonth(ss);
+        } else {
+            cout << "Unknown command." << endl;
+        }
+    }
     return 0;
 }
