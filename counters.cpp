@@ -156,7 +156,7 @@ public:
                     ok = ok && (line >> new_month.t2);
                     // Saving the results or show the error
                     if (ok && (line.eof() || (line.peek() == '\r') || (line.peek() == '\n'))) {
-                        counters.insert(new_month);
+                        counters.push_back(new_month);
                     } else {
                         cerr << "Error in line " << line_count << ": " << line_str
                         << "\nSkipping this line." << endl;
@@ -178,16 +178,28 @@ public:
             new_month.date = date;
             try {
                 new_month = ParseCounters(line, new_month);
-                counters.insert(new_month);
+                counters.push_back(new_month);
             } catch(const exception& e) {
                 cerr << e.what() << endl;
             }
         }
-        // CalculatePayment();
     }
 
-    void CalculatePayment() {
-
+    double CalculatePayment() {
+        if (counters.size() >= 2) {
+            double sum = 0;
+            sum += (counters[static_cast<int>(counters.size()) - 1].gvs - 
+                    counters[static_cast<int>(counters.size()) - 2].gvs) * gvs_rate;
+            sum += (counters[static_cast<int>(counters.size()) - 1].hvs - 
+                    counters[static_cast<int>(counters.size()) - 2].hvs) * hvs_rate;
+            sum += (counters[static_cast<int>(counters.size()) - 1].t1 - 
+                    counters[static_cast<int>(counters.size()) - 2].t1) * t1_rate;
+            sum += (counters[static_cast<int>(counters.size()) - 1].t2 - 
+                    counters[static_cast<int>(counters.size()) - 2].t2) * t2_rate;
+            return sum;
+        } else {
+            return -1; // Not enough data to calculate payment
+        }
     }
     
     // void SaveFileData(const string& path) {
@@ -195,11 +207,11 @@ public:
     // }
 
 private:
-    set<MonthlyCounters> counters = {};
-    const int gvs_rate = 188.53;
-    const int hvs_rate = 38.06;
-    const int t1_rate = 4.95;
-    const int t2_rate = 1.35;  
+    vector<MonthlyCounters> counters = {};
+    const double gvs_rate = 188.53;
+    const double hvs_rate = 38.06;
+    const double t1_rate = 4.95;
+    const double t2_rate = 1.35;  
 };
 
 
@@ -214,6 +226,11 @@ int main() {
         ss >> command;
         if (command == "add") {
             db.AddNewMonth(ss);
+            if (double amount = db.CalculatePayment(); amount == -1) {
+                cout << "Please enter at least one more month data to calculate payment." << endl;
+            } else {
+                cout << "Payment amount: " << amount << endl;
+            }
         } else {
             cout << "Unknown command." << endl;
         }
